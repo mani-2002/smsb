@@ -11,6 +11,7 @@ const socketIo = require("socket.io");
 const multer = require("multer");
 const mime = require("mime-types");
 const { log } = require("console");
+const cloudinary = require("cloudinary").v2;
 require("dotenv").config();
 
 const app = express();
@@ -28,6 +29,12 @@ const io = socketIo(server, {
 const PORT = 3001;
 const saltRound = 10;
 const secretKey = "yourSecretKey";
+
+cloudinary.config({
+  cloud_name: "dtgsps8aa",
+  api_key: "699219159134714",
+  api_secret: "NQQkZJLaF6mXTeIh316BAp3-bsU",
+});
 
 const connection = mysql.createConnection({
   host: "localhost",
@@ -97,8 +104,6 @@ app.post("/signup", upload.single("file"), (req, res) => {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    const fileData = file.buffer;
-
     bcrypt.hash(password, saltRound, (err, hash) => {
       if (err) {
         console.error("Error hashing password:", err);
@@ -163,34 +168,50 @@ app.post("/signup", upload.single("file"), (req, res) => {
                       }
                       vilManDisArr.push(districtResults[0].district_id);
                       const uid = uidFieldSet(mobileNumber, vilManDisArr);
-
-                      // Insert the new user
-                      const insertUserQuery = `INSERT INTO users(name, mobile_number, username, password, village, mandal, district, profile_pic,uid, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?,?, 'user')`;
-                      connection.execute(
-                        insertUserQuery,
-                        [
-                          name,
-                          mobileNumber,
-                          userName,
-                          hash,
-                          village,
-                          mandal,
-                          district,
-                          fileData,
-                          uid,
-                        ],
-                        (err, result) => {
-                          if (err) {
-                            console.error("Error creating the user:", err);
-                            return res
-                              .status(500)
-                              .json({ message: "Error creating the user" });
+                      cloudinary.uploader
+                        .upload_stream(
+                          { folder: "your_folder_name" },
+                          (error, result) => {
+                            if (error) {
+                              console.error("cloudinary upload error:", error);
+                              return res
+                                .status(500)
+                                .send("Error uploading to cloudinary ");
+                            }
+                            const profilePicLink = result.secure_url;
+                            // Insert the new user
+                            const insertUserQuery = `INSERT INTO users(name, mobile_number, username, password, village, mandal, district, profile_pic,uid, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?,?, 'user')`;
+                            connection.execute(
+                              insertUserQuery,
+                              [
+                                name,
+                                mobileNumber,
+                                userName,
+                                hash,
+                                village,
+                                mandal,
+                                district,
+                                profilePicLink,
+                                uid,
+                              ],
+                              (err, result) => {
+                                if (err) {
+                                  console.error(
+                                    "Error creating the user:",
+                                    err
+                                  );
+                                  return res.status(500).json({
+                                    message: "Error creating the user",
+                                  });
+                                }
+                                res.status(201).json({
+                                  message: "User created successfully",
+                                });
+                              }
+                            );
                           }
-                          res
-                            .status(201)
-                            .json({ message: "User created successfully" });
-                        }
-                      );
+                        )
+                        .end(req.file.buffer);
                     }
                   );
                 }
@@ -205,89 +226,6 @@ app.post("/signup", upload.single("file"), (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 });
-
-// app.post("/signup", upload.single("file"), (req, res) => {
-//   try {
-//     const {
-//       name,
-//       userName,
-//       password,
-//       mobileNumber,
-//       village,
-//       mandal,
-//       district,
-//     } = req.body;
-//     const file = req.file;
-
-//     if (
-//       !name ||
-//       !mobileNumber ||
-//       !userName ||
-//       !password ||
-//       !village ||
-//       !mandal ||
-//       !district ||
-//       !file
-//     ) {
-//       return res.status(400).json({ message: "Missing required fields" });
-//     }
-
-//     const fileData = file.buffer;
-
-//     bcrypt.hash(password, saltRound, (err, hash) => {
-//       if (err) {
-//         console.error("Error hashing password:", err);
-//         return res.status(500).json({ message: "Error hashing password" });
-//       }
-
-//       const checkUserQuery = `SELECT * FROM users WHERE mobile_number = ? OR username = ?`;
-//       connection.execute(
-//         checkUserQuery,
-//         [mobileNumber, userName],
-//         (err, results) => {
-//           if (err) {
-//             console.error("Error checking for existing user:", err);
-//             return res
-//               .status(500)
-//               .json({ message: "Error checking for existing user" });
-//           }
-
-//           if (results.length > 0) {
-//             return res.status(409).json({ message: "User already exists" });
-//           }
-
-//           // Insert the new user
-//           const insertUserQuery = `INSERT INTO users(name, mobile_number, username, password, village, mandal, district, profile_pic, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'user')`;
-//           connection.execute(
-//             insertUserQuery,
-//             [
-//               name,
-//               mobileNumber,
-//               userName,
-//               hash,
-//               village,
-//               mandal,
-//               district,
-//               fileData,
-//             ],
-//             (err, result) => {
-//               if (err) {
-//                 console.error("Error creating the user:", err);
-//                 return res
-//                   .status(500)
-//                   .json({ message: "Error creating the user" });
-//               }
-//               res.status(201).json({ message: "User created successfully" });
-//             }
-//           );
-//         }
-//       );
-//     });
-//   } catch (error) {
-//     console.error("Unexpected error:", error);
-//     res.status(500).json({ message: "Internal server error" });
-//   }
-// });
 
 app.get("/login", (req, res) => {
   if (req.session.user) {
@@ -351,11 +289,7 @@ app.get("/user_data/:username", (req, res) => {
     if (results.length === 0) {
       return res.status(404).json({ message: "User Not Found" });
     }
-    const userDetails = results[0].profile_pic;
-    const base64Image = userDetails.toString("base64");
-    const mimeType = "image/jpeg";
-    const imageSrc = `data:${mimeType};base64,${base64Image}`;
-    res.json({ image: imageSrc });
+    res.json(results[0]);
   });
 });
 
@@ -413,6 +347,7 @@ app.post("/request-admin-access", upload.single("file"), (req, res) => {
     state,
     requestFor,
   } = req.body;
+  const date_and_time = new Date();
 
   const file = req.file;
   if (
@@ -425,49 +360,51 @@ app.post("/request-admin-access", upload.single("file"), (req, res) => {
     !state ||
     !file
   ) {
-    return res.status(400).json({ message: "Messing Required Fields" });
+    return res.status(400).json({ message: "Missing Required Fields" });
   }
-  const fileData = file.buffer;
 
-  const insertRequestsQuery = `INSERT INTO accessadminrequests(name,mobile_number,age,village,mandal,district,state,photo,request_for,status) VALUES(?,?,?,?,?,?,?,?,?,'pending')`;
-  connection.execute(
-    insertRequestsQuery,
-    [
-      name,
-      mobileNumber,
-      age,
-      village,
-      mandal,
-      district,
-      state,
-      fileData,
-      requestFor,
-    ],
-    (err, results) => {
-      if (err) {
-        return res.status(500).json({ message: "Error Sending Request" });
+  cloudinary.uploader
+    .upload_stream({ folder: "your_folder_name" }, (error, result) => {
+      if (error) {
+        console.error("Cloudinary upload error:", error);
+        return res
+          .status(500)
+          .json({ message: "Error uploading to Cloudinary" });
       }
-      return res.status(201).json({
-        message: `Request sent to Admin for ${requestFor} Successfully`,
-      });
-    }
-  );
-});
 
-// app.get("/user-details/:i", (req, res) => {
-//   const userId = req.params.i;
-//   const fetchUsersQuery = `SELECT * FROM users WHERE user_id = ?`;
-//   connection.execute(fetchUsersQuery, [userId], (err, results) => {
-//     if (err) {
-//       return res.status(500).json({ message: "Error Fetching Users" });
-//     }
-//     const userProfile = results[0].profile_pic;
-//     const base64Image = userProfile.toString("base64");
-//     const mimeType = "image/jpeg";
-//     const imageSrc = `data:${mimeType};base64,${base64Image}`;
-//     res.json({ image: imageSrc });
-//   });
-// });
+      const fileData = result.secure_url;
+      const insertRequestsQuery = `
+      INSERT INTO accessadminrequests(name, mobile_number, age, village, mandal, district, state, photo, request_for, req_date_and_time, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+    `;
+
+      connection.execute(
+        insertRequestsQuery,
+        [
+          name,
+          mobileNumber,
+          age,
+          village,
+          mandal,
+          district,
+          state,
+          fileData,
+          requestFor,
+          date_and_time,
+        ],
+        (err) => {
+          if (err) {
+            console.error("Database insertion error:", err);
+            return res.status(500).json({ message: "Error Sending Request" });
+          }
+          return res.status(201).json({
+            message: `Request sent to Admin for ${requestFor} Successfully`,
+          });
+        }
+      );
+    })
+    .end(file.buffer);
+});
 
 app.get("/user-details/:i", (req, res) => {
   const userId = req.params.i;
