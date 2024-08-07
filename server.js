@@ -31,16 +31,16 @@ const saltRound = 10;
 const secretKey = "yourSecretKey";
 
 cloudinary.config({
-  cloud_name: "dtgsps8aa",
-  api_key: "699219159134714",
-  api_secret: "NQQkZJLaF6mXTeIh316BAp3-bsU",
+  cloud_name: process.env.CLOUD_NAME,
+  api_key: process.env.API_KEY,
+  api_secret: process.env.API_SECRET,
 });
 
 const connection = mysql.createConnection({
-  host: "localhost",
-  user: "root",
-  password: "root",
-  database: "sms",
+  host: process.env.HOST,
+  user: process.env.USER,
+  password: process.env.PASSWORD,
+  database: process.env.DATABASE,
 });
 
 connection.connect((err) => {
