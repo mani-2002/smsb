@@ -413,13 +413,7 @@ app.get("/user-details/:i", (req, res) => {
     if (err) {
       return res.status(500).json({ message: "Error Fetching Users" });
     }
-
-    const user = results[0];
-    const profilePicBase64 = user.profile_pic.toString("base64");
-    const mimeType = "image/jpeg"; // Adjust the MIME type if necessary
-    user.profile_pic = `data:${mimeType};base64,${profilePicBase64}`;
-
-    res.json(user);
+    res.json(results[0]);
   });
 });
 
