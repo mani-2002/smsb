@@ -399,6 +399,16 @@ app.get("/requests-for-admin-access", (req, res) => {
   });
 });
 
+app.get("/requests-for-mandal-admin-access", (req, res) => {
+  const fetchMandalAdminAccessRequestsQuery = `SELECT * FROM accessadminrequests WHERE tag = 'D' ORDER BY req_date_and_time DESC`;
+  connection.query(fetchMandalAdminAccessRequestsQuery, (err, result) => {
+    if (err) {
+      return res.status(500).json({ message: "internal server error" });
+    }
+    res.json(result);
+  });
+});
+
 app.get("/user-details/:i", (req, res) => {
   const userId = req.params.i;
   const fetchUsersQuery = `SELECT * FROM users WHERE user_id = ?`;
@@ -622,6 +632,39 @@ app.get("/mandals-list", (req, res) => {
 app.get("/villages-list", (req, res) => {
   const fetchVillages = `SELECT * FROM villages`;
   connection.execute(fetchVillages, (err, result) => {
+    if (err) {
+      return res.status(500).json({ message: "internal server error" });
+    }
+    res.json(result);
+  });
+});
+
+app.post("/accept-mandal-admin-access-request/:id", (req, res) => {
+  const requestId = req.params.id;
+  const acceptMandalAdminRequest = `UPDATE accessadminrequests SET tag = 'S' WHERE request_id = ?`;
+  connection.execute(acceptMandalAdminRequest, [requestId], (err, result) => {
+    if (err) {
+      return res.status(500).json({ message: "internal server error" });
+    }
+    return res.json({ message: "request successfully accepted" });
+  });
+});
+
+app.get("/mandal-admins-list/:district", (req, res) => {
+  const district = req.params.district;
+  const fetchMandalAdminsQuery = `SELECT * FROM users WHERE role = 'madmin' AND district = ?`;
+  connection.execute(fetchMandalAdminsQuery, [district], (err, result) => {
+    if (err) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+    res.json(result);
+  });
+});
+
+app.get("/admin-details/:role", (req, res) => {
+  const role = req.params.role;
+  const fetchAdminDetails = `SELECT * FROM users WHERE role = ?`;
+  connection.execute(fetchAdminDetails, [role], (err, result) => {
     if (err) {
       return res.status(500).json({ message: "internal server error" });
     }
